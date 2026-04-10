@@ -5,6 +5,7 @@ export interface Config {
   id: number; // ID fixo (ex: 1) para manter apenas um registro
   valorPrimeiraViagem: number;
   valorSegundaViagem: number;
+  motoristaNome?: string;
 }
 
 // Tabela de Viagens
@@ -24,9 +25,13 @@ class DatabaseHelper extends Dexie {
     super('AmbulanceDB');
     
     // Definindo o esquema do banco de dados
-    this.version(1).stores({
+    this.version(2).stores({
       config: 'id',
       viagens: '++id, destino, data_completa'
+    }).upgrade(tx => {
+      return tx.table('config').toCollection().modify(config => {
+        if (!config.motoristaNome) config.motoristaNome = '';
+      });
     });
 
     // Populando valores padrão na primeira vez que o banco é criado
@@ -34,7 +39,8 @@ class DatabaseHelper extends Dexie {
       this.config.add({
         id: 1,
         valorPrimeiraViagem: 56.34,
-        valorSegundaViagem: 14.98
+        valorSegundaViagem: 14.98,
+        motoristaNome: ''
       });
     });
   }
@@ -48,11 +54,13 @@ class DatabaseHelper extends Dexie {
     return config;
   }
 
-  async updateConfig(primeira: number, segunda: number): Promise<void> {
+  async updateConfig(primeira: number, segunda: number, nome?: string): Promise<void> {
+    const current = await this.getConfig();
     await this.config.put({
       id: 1,
       valorPrimeiraViagem: primeira,
-      valorSegundaViagem: segunda
+      valorSegundaViagem: segunda,
+      motoristaNome: nome !== undefined ? nome : current.motoristaNome
     });
   }
 

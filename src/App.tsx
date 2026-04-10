@@ -3,19 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Viagem } from './lib/db';
 import { format, parseISO, isToday, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, addDays, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Home, List, Settings, MapPin, Calendar, Moon, Sun, Ambulance, Trash2, AlertTriangle, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, List, Settings, MapPin, Calendar, Moon, Sun, Ambulance, Trash2, AlertTriangle, Info, X, ChevronLeft, ChevronRight, Printer, FileDown, Loader2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'inicio' | 'historico' | 'ajustes'>('inicio');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [viagemToDelete, setViagemToDelete] = useState<number | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [historyView, setHistoryView] = useState<'lista' | 'calendario'>('lista');
+  const reportRef = useRef<HTMLDivElement>(null);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [dataViagem, setDataViagem] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
@@ -33,6 +38,11 @@ export default function App() {
 
   const viagensHoje = viagens?.filter(v => isToday(parseISO(v.data_completa))) || [];
   const totalGanhoHoje = viagensHoje.reduce((acc, v) => acc + v.valor_ganho, 0);
+
+  const monthToPrint = activeTab === 'historico' ? (historyView === 'lista' ? selectedDate : calendarMonth) : new Date();
+  const monthTripsReport = viagens?.filter(v => isSameMonth(parseISO(v.data_completa), monthToPrint))
+    .sort((a, b) => parseISO(a.data_completa).getTime() - parseISO(b.data_completa).getTime()) || [];
+  const totalMesReport = monthTripsReport.reduce((acc, v) => acc + v.valor_ganho, 0);
 
   const viagensPorMes = viagens?.reduce((acc, viagem) => {
     const mesAno = format(parseISO(viagem.data_completa), "MMMM 'de' yyyy", { locale: ptBR });
@@ -67,14 +77,66 @@ export default function App() {
     const formData = new FormData(e.currentTarget);
     const v1 = Number(formData.get('v1'));
     const v2 = Number(formData.get('v2'));
-    await db.updateConfig(v1, v2);
+    const nome = formData.get('nome') as string;
+    await db.updateConfig(v1, v2, nome);
+  };
+
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const nome = formData.get('nome') as string;
+    if (nome.trim() && config) {
+      await db.updateConfig(config.valorPrimeiraViagem, config.valorSegundaViagem, nome);
+    }
+  };
+
+  const handlePrint = () => {
+    setShowReport(true);
+  };
+
+  const triggerPrint = () => {
+    window.print();
+  };
+
+  const handleSavePDF = async () => {
+    if (!reportRef.current) return;
+    
+    try {
+      setIsGeneratingPDF(true);
+      const element = reportRef.current;
+      
+      // Use a higher scale for better quality
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 0;
+      
+      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      pdf.save(`relatorio-diarias-${format(monthToPrint, "yyyy-MM")}.pdf`);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   return (
     <div className="h-screen w-full flex flex-col bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-50 transition-colors overflow-hidden font-sans">
       
       {/* Header */}
-      <header className="bg-primary-900 dark:bg-slate-950 text-white p-4 shadow-md flex-shrink-0 flex items-center justify-center relative z-10 border-b border-primary-800/50 dark:border-slate-800/50">
+      <header className="bg-primary-900 dark:bg-slate-950 text-white p-4 shadow-md flex-shrink-0 flex items-center justify-center relative z-10 border-b border-primary-800/50 dark:border-slate-800/50 no-print">
         <div className="flex items-center gap-3">
           {/* Logo Mark */}
           <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-[0_0_15px_rgba(59,130,246,0.4)] border border-primary-300/30 overflow-hidden">
@@ -149,7 +211,7 @@ export default function App() {
         {/* HISTÓRICO TAB */}
         {activeTab === 'historico' && (
           <div className="h-full w-full flex flex-col p-4 max-w-md mx-auto">
-            <div className="flex items-center justify-between mb-6 px-2 mt-2 flex-shrink-0">
+            <div className="flex items-center justify-between mb-6 px-2 mt-2 flex-shrink-0 no-print">
               <h2 className="text-2xl font-bold text-primary-900 dark:text-primary-400">Histórico</h2>
               <div className="flex bg-slate-300 dark:bg-slate-800 rounded-lg p-1">
                 <button
@@ -171,7 +233,7 @@ export default function App() {
               {historyView === 'lista' ? (
                 <div className="space-y-4">
                   {/* Date Navigator */}
-                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-2">
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-2 no-print">
                     <button onClick={() => setSelectedDate(subDays(selectedDate, 1))} className="p-2 text-slate-500 hover:text-primary-600 dark:hover:text-primary-400"><ChevronLeft /></button>
                     <h3 className="font-bold text-lg capitalize text-slate-800 dark:text-slate-200">{format(selectedDate, "dd 'de' MMMM yyyy", { locale: ptBR })}</h3>
                     <button onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="p-2 text-slate-500 hover:text-primary-600 dark:hover:text-primary-400"><ChevronRight /></button>
@@ -185,11 +247,18 @@ export default function App() {
 
                     return (
                       <div className="space-y-4">
-                        <div className="bg-primary-900 dark:bg-slate-800 text-white p-5 rounded-3xl shadow-md flex items-center justify-between">
+                        <div className="bg-primary-900 dark:bg-slate-800 text-white p-5 rounded-3xl shadow-md flex items-center justify-between no-print">
                           <div>
                             <p className="text-primary-200 dark:text-slate-400 text-sm font-bold mb-1">Total do Mês</p>
                             <p className="text-3xl font-black">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalMes)}</p>
                           </div>
+                          <button 
+                            onClick={handlePrint}
+                            className="bg-white/20 hover:bg-white/30 p-3 rounded-2xl transition-colors"
+                            title="Imprimir Relatório Mensal"
+                          >
+                            <Printer className="w-6 h-6 text-white" />
+                          </button>
                         </div>
 
                         {dayTrips.length === 0 ? (
@@ -226,7 +295,7 @@ export default function App() {
                                   </div>
                                   <button 
                                     onClick={() => setViagemToDelete(viagem.id!)}
-                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors no-print"
                                   >
                                     <Trash2 className="w-5 h-5" />
                                   </button>
@@ -242,14 +311,14 @@ export default function App() {
               ) : (
                 <div className="space-y-4">
                   {/* Calendar Header */}
-                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 no-print">
                     <button onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))} className="p-2 text-slate-500 hover:text-primary-600 dark:hover:text-primary-400"><ChevronLeft /></button>
                     <h3 className="font-bold text-lg capitalize text-slate-800 dark:text-slate-200">{format(calendarMonth, "MMMM yyyy", { locale: ptBR })}</h3>
                     <button onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))} className="p-2 text-slate-500 hover:text-primary-600 dark:hover:text-primary-400"><ChevronRight /></button>
                   </div>
                   
                   {/* Calendar Grid */}
-                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                  <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 no-print">
                     <div className="grid grid-cols-7 gap-1 mb-2">
                       {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, i) => (
                         <div key={i} className="text-center text-xs font-bold text-slate-400">{day}</div>
@@ -294,11 +363,18 @@ export default function App() {
 
                       return (
                         <div className="space-y-4">
-                          <div className="bg-primary-900 dark:bg-slate-800 text-white p-5 rounded-3xl shadow-md flex items-center justify-between">
+                          <div className="bg-primary-900 dark:bg-slate-800 text-white p-5 rounded-3xl shadow-md flex items-center justify-between no-print">
                             <div>
                               <p className="text-primary-200 dark:text-slate-400 text-sm font-bold mb-1">Total do Mês</p>
                               <p className="text-3xl font-black">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalMes)}</p>
                             </div>
+                            <button 
+                              onClick={handlePrint}
+                              className="bg-white/20 hover:bg-white/30 p-3 rounded-2xl transition-colors"
+                              title="Imprimir Relatório Mensal"
+                            >
+                              <Printer className="w-6 h-6 text-white" />
+                            </button>
                           </div>
 
                           <div className="flex items-center justify-between px-2 mb-2 mt-4">
@@ -339,7 +415,7 @@ export default function App() {
                                   </div>
                                   <button 
                                     onClick={() => setViagemToDelete(viagem.id!)}
-                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors no-print"
                                   >
                                     <Trash2 className="w-5 h-5" />
                                   </button>
@@ -385,12 +461,39 @@ export default function App() {
               </div>
             </div>
 
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
+                <Settings className="w-5 h-5 text-primary-900 dark:text-primary-400" />
+                Perfil do Motorista
+              </h3>
+              <form onSubmit={handleUpdateConfig} className="space-y-5 mt-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Nome Completo</label>
+                  <input 
+                    type="text" 
+                    name="nome" 
+                    defaultValue={config.motoristaNome}
+                    placeholder="Seu nome completo"
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-primary-900 dark:focus:ring-primary-500 outline-none font-bold text-lg"
+                    required
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="w-full p-4 bg-primary-900 hover:bg-primary-800 dark:bg-primary-700 dark:hover:bg-primary-600 text-white font-bold text-lg rounded-2xl transition-colors mt-2"
+                >
+                  Atualizar Nome
+                </button>
+              </form>
+            </div>
+
             <div className="bg-slate-50 dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
                 <Settings className="w-5 h-5 text-primary-900 dark:text-primary-400" />
                 Valores das Diárias
               </h3>
               <form onSubmit={handleUpdateConfig} className="space-y-5 mt-4">
+                <input type="hidden" name="nome" defaultValue={config.motoristaNome} />
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Valor 1ª Viagem (R$)</label>
                   <input 
@@ -511,7 +614,7 @@ export default function App() {
       )}
 
       {/* Bottom Navigation Bar */}
-      <nav className="h-20 flex-shrink-0 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-around items-center px-1 z-10 pb-safe">
+      <nav className="h-20 flex-shrink-0 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-around items-center px-1 z-10 pb-safe no-print">
         <button 
           onClick={() => setActiveTab('inicio')}
           className={`flex flex-col items-center justify-center w-20 h-full gap-1 transition-colors ${activeTab === 'inicio' ? 'text-primary-900 dark:text-primary-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
@@ -541,6 +644,200 @@ export default function App() {
           <span className="text-xs font-bold">Info</span>
         </button>
       </nav>
+
+      {/* Relatório de Impressão / Preview */}
+      {(showReport || true) && (
+        <div className={`${showReport ? 'fixed inset-0 bg-slate-900/90 z-[60] overflow-y-auto p-4 md:p-8 flex flex-col items-center' : 'print-only'}`}>
+          {showReport && (
+            <div className="w-full max-w-4xl flex flex-wrap justify-between items-center gap-4 mb-6 no-print">
+              <button 
+                onClick={() => setShowReport(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-2xl font-bold transition-colors flex items-center gap-2"
+              >
+                <X className="w-5 h-5" /> Fechar
+              </button>
+              <div className="flex gap-3 flex-1 sm:flex-none">
+                <button 
+                  onClick={triggerPrint}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-900 px-6 py-3 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 border border-slate-300 flex-1 min-w-[140px]"
+                >
+                  <Printer className="w-5 h-5" /> Imprimir
+                </button>
+                <button 
+                  onClick={handleSavePDF}
+                  disabled={isGeneratingPDF}
+                  className="bg-primary-600 hover:bg-primary-500 text-white px-6 py-3 rounded-2xl font-black transition-all shadow-lg shadow-primary-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed flex-1 min-w-[140px]"
+                >
+                  {isGeneratingPDF ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" /> Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-5 h-5" /> Salvar PDF
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div 
+            ref={reportRef}
+            className={`bg-white text-black p-8 md:p-12 shadow-2xl w-full max-w-4xl min-h-[29.7cm] ${showReport ? 'rounded-3xl' : ''}`}
+          >
+            <div className="flex items-center justify-between border-b-4 border-slate-900 pb-6 mb-10">
+              <div>
+                <h1 className="text-4xl font-black uppercase tracking-tighter leading-none mb-2">Relatório de Diárias</h1>
+                <p className="text-slate-600 font-bold uppercase tracking-[0.2em] text-sm">Ambulância • {format(monthToPrint, "MMMM 'de' yyyy", { locale: ptBR })}</p>
+              </div>
+              <div className="text-right flex flex-col items-end gap-2">
+                <div className="bg-slate-900 text-white p-2 rounded-lg">
+                  <Ambulance className="w-8 h-8" />
+                </div>
+                <p className="text-[10px] text-slate-400 font-mono">ID: {format(monthToPrint, "yyyyMM")}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4 mb-12">
+              <div className="flex-1 min-w-[200px] bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 flex flex-col justify-center">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-primary-600"></div>
+                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total Acumulado</p>
+                </div>
+                <p className="text-3xl font-black text-slate-900 break-words">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalMesReport)}
+                </p>
+              </div>
+              <div className="flex-1 min-w-[200px] bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 flex flex-col justify-center">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total de Viagens</p>
+                </div>
+                <p className="text-3xl font-black text-slate-900">
+                  {monthTripsReport.length} <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">Viagens</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Viagens com Valor (Diárias) */}
+            <div className="mb-12">
+              <h3 className="text-lg font-black uppercase tracking-widest mb-6 border-b-2 border-slate-200 pb-2 inline-block">Viagens com Diárias</h3>
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left border-b-2 border-slate-900">
+                    <th className="py-4 font-black uppercase text-xs tracking-widest">Data</th>
+                    <th className="py-4 font-black uppercase text-xs tracking-widest">Hora</th>
+                    <th className="py-4 font-black uppercase text-xs tracking-widest">Destino</th>
+                    <th className="py-4 text-right font-black uppercase text-xs tracking-widest">Valor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {monthTripsReport.filter(v => v.valor_ganho > 0).length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-10 text-center text-slate-400 font-medium italic">Nenhuma viagem com diária registrada.</td>
+                    </tr>
+                  ) : (
+                    monthTripsReport.filter(v => v.valor_ganho > 0).map((v, idx) => (
+                      <tr key={v.id} className={idx % 2 === 0 ? 'bg-slate-50/30' : ''}>
+                        <td className="py-4 font-bold text-slate-700">{format(parseISO(v.data_completa), "dd/MM/yyyy")}</td>
+                        <td className="py-4 text-slate-500 font-medium">{format(parseISO(v.data_completa), "HH:mm")}</td>
+                        <td className="py-4 font-black text-slate-900">{v.destino}</td>
+                        <td className="py-4 text-right font-black text-slate-900">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v.valor_ganho)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Viagens sem Valor (Excedentes) */}
+            <div className="mb-12">
+              <h3 className="text-lg font-black uppercase tracking-widest mb-6 border-b-2 border-slate-200 pb-2 inline-block">Viagens Excedentes (Sem Diária)</h3>
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left border-b-2 border-slate-900">
+                    <th className="py-4 font-black uppercase text-xs tracking-widest">Data</th>
+                    <th className="py-4 font-black uppercase text-xs tracking-widest">Hora</th>
+                    <th className="py-4 font-black uppercase text-xs tracking-widest">Destino</th>
+                    <th className="py-4 text-right font-black uppercase text-xs tracking-widest">Valor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {monthTripsReport.filter(v => v.valor_ganho === 0).length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-10 text-center text-slate-400 font-medium italic">Nenhuma viagem excedente registrada.</td>
+                    </tr>
+                  ) : (
+                    monthTripsReport.filter(v => v.valor_ganho === 0).map((v, idx) => (
+                      <tr key={v.id} className={idx % 2 === 0 ? 'bg-slate-50/30' : ''}>
+                        <td className="py-4 font-bold text-slate-700">{format(parseISO(v.data_completa), "dd/MM/yyyy")}</td>
+                        <td className="py-4 text-slate-500 font-medium">{format(parseISO(v.data_completa), "HH:mm")}</td>
+                        <td className="py-4 font-black text-slate-900">{v.destino}</td>
+                        <td className="py-4 text-right font-black text-slate-400">R$ 0,00</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-auto pt-24">
+              <div className="flex justify-center mb-12">
+                <div className="w-72 border-t border-slate-900 pt-2 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Assinatura</p>
+                </div>
+              </div>
+              <div className="flex justify-between items-end text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                <p>Motorista: <span className="text-slate-900">{config?.motoristaNome || 'Não informado'}</span></p>
+                <p className="font-medium text-slate-400 normal-case tracking-normal">Relatório gerado em: {format(new Date(), "dd/MM/yyyy 'às' HH:mm")}</p>
+              </div>
+            </div>
+          </div>
+          
+          {showReport && (
+            <p className="mt-8 text-slate-400 text-xs font-medium no-print">
+              Dica: Selecione "Salvar como PDF" nas opções de destino da impressora.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Modal de Login (Primeiro Acesso) */}
+      {config && !config.motoristaNome && (
+        <div className="fixed inset-0 bg-primary-900 flex items-center justify-center z-[100] p-6">
+          <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 text-slate-900 flex flex-col items-center text-center">
+            <div className="w-20 h-20 rounded-3xl bg-primary-100 flex items-center justify-center mb-6">
+              <Ambulance className="w-10 h-10 text-primary-600" />
+            </div>
+            
+            <h2 className="text-2xl font-black mb-2 text-slate-900">Bem-vindo!</h2>
+            <p className="text-slate-500 font-medium mb-8">
+              Para começar, informe seu nome completo. Ele será usado nos relatórios de impressão.
+            </p>
+            
+            <form onSubmit={handleLogin} className="w-full space-y-4">
+              <div className="text-left">
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Nome Completo</label>
+                <input 
+                  type="text" 
+                  name="nome" 
+                  autoFocus
+                  placeholder="Ex: João da Silva"
+                  className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary-500 focus:ring-0 outline-none font-bold text-lg transition-all"
+                  required
+                />
+              </div>
+              <button 
+                type="submit"
+                className="w-full p-5 bg-primary-600 hover:bg-primary-500 text-white font-black text-lg rounded-2xl transition-all shadow-lg shadow-primary-900/20 active:scale-95"
+              >
+                Começar a Usar
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

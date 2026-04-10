@@ -30,3 +30,26 @@
   --primary-900: #1e3a8a;
   --primary-950: #172554;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  @page {
+    margin: 2cm;
+  }
+}
+
+.print-only {
+  display: none;
+}
