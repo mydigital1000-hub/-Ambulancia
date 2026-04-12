@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import * as React from 'react';
+import { motion } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Viagem } from './lib/db';
 import { format, parseISO, isToday, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, addDays, subDays } from 'date-fns';
@@ -13,20 +14,20 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'inicio' | 'historico' | 'ajustes'>('inicio');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [viagemToDelete, setViagemToDelete] = useState<number | null>(null);
-  const [showInfo, setShowInfo] = useState(false);
-  const [showReport, setShowReport] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const [historyView, setHistoryView] = useState<'lista' | 'calendario'>('lista');
-  const reportRef = useRef<HTMLDivElement>(null);
-  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [dataViagem, setDataViagem] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [activeTab, setActiveTab] = React.useState<'inicio' | 'historico' | 'ajustes'>('inicio');
+  const [theme, setTheme] = React.useState<'light' | 'dark'>('dark');
+  const [viagemToDelete, setViagemToDelete] = React.useState<number | null>(null);
+  const [showInfo, setShowInfo] = React.useState(false);
+  const [showReport, setShowReport] = React.useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
+  const [historyView, setHistoryView] = React.useState<'lista' | 'calendario'>('lista');
+  const reportRef = React.useRef<HTMLDivElement>(null);
+  const [calendarMonth, setCalendarMonth] = React.useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
+  const [dataViagem, setDataViagem] = React.useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   // Apply theme classes
-  useEffect(() => {
+  React.useEffect(() => {
     document.documentElement.classList.remove('dark');
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -133,10 +134,10 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-50 transition-colors overflow-hidden font-sans">
+    <div className={`h-screen w-full flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-50 transition-colors overflow-hidden font-sans`}>
       
       {/* Header */}
-      <header className="bg-primary-900 dark:bg-slate-950 text-white p-4 shadow-md flex-shrink-0 flex items-center justify-center relative z-10 border-b border-primary-800/50 dark:border-slate-800/50 no-print">
+      <header className="bg-primary-900 dark:bg-slate-950 text-white p-4 shadow-md flex-shrink-0 flex items-center justify-between relative z-10 border-b border-primary-800/50 dark:border-slate-800/50 no-print">
         <div className="flex items-center gap-3">
           {/* Logo Mark */}
           <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 shadow-[0_0_15px_rgba(59,130,246,0.4)] border border-primary-300/30 overflow-hidden">
@@ -150,6 +151,14 @@ export default function App() {
             </h1>
           </div>
         </div>
+        
+        {/* Theme Toggle */}
+        <button 
+          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+          className="p-2 rounded-xl bg-primary-800/50 hover:bg-primary-700 transition-colors"
+        >
+          {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+        </button>
       </header>
 
       {/* Main Content Area */}
@@ -159,18 +168,26 @@ export default function App() {
         {activeTab === 'inicio' && (
           <div className="h-full w-full flex flex-col justify-center items-center p-4 max-w-md mx-auto gap-4">
             
-            {/* Top: Saldo */}
-            <div className="flex flex-col items-center w-full bg-slate-50 dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 shrink-0">
-              <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Saldo de Hoje</p>
-              <h2 className="text-4xl font-black text-primary-900 dark:text-primary-400">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalGanhoHoje)}
-              </h2>
+            {/* Top: Saldos */}
+            <div className="grid grid-cols-2 gap-4 w-full shrink-0">
+              <div className="flex flex-col items-center bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700">
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Saldo de Hoje</p>
+                <h2 className="text-2xl font-black text-primary-600 dark:text-primary-400">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalGanhoHoje)}
+                </h2>
+              </div>
+              <div className="flex flex-col items-center bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700">
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Total do Mês</p>
+                <h2 className="text-2xl font-black text-primary-600 dark:text-primary-400">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(viagens?.filter(v => isSameMonth(parseISO(v.data_completa), new Date())).reduce((acc, v) => acc + v.valor_ganho, 0) || 0)}
+                </h2>
+              </div>
             </div>
 
             {/* Date Picker */}
-            <div className="w-full bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between shrink-0">
+            <div className="w-full bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between shrink-0">
               <label htmlFor="dataViagem" className="font-bold text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary-900 dark:text-primary-400" />
+                <Calendar className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                 Data da Viagem
               </label>
               <input 
@@ -179,26 +196,30 @@ export default function App() {
                 value={dataViagem}
                 onChange={(e) => setDataViagem(e.target.value)}
                 max={format(new Date(), 'yyyy-MM-dd')}
-                className="bg-slate-200 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-sm text-slate-700 dark:text-slate-300 font-medium outline-none focus:ring-2 focus:ring-primary-500"
+                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-sm text-slate-700 dark:text-slate-300 font-medium outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
             {/* Center: Botões */}
             <div className="flex flex-col gap-5 w-full shrink-0 my-5">
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => handleAddViagem('Cássia')}
-                className="w-[85%] mx-auto bg-primary-900 hover:bg-primary-800 dark:bg-primary-700 dark:hover:bg-primary-600 text-white py-4 rounded-3xl font-black text-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
+                className="w-[85%] mx-auto bg-primary-600 hover:bg-primary-700 text-white py-4 rounded-3xl font-black text-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
               >
                 <MapPin className="w-6 h-6" />
                 CÁSSIA
-              </button>
-              <button 
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => handleAddViagem('Passos')}
-                className="w-[85%] mx-auto bg-primary-900 hover:bg-primary-800 dark:bg-primary-700 dark:hover:bg-primary-600 text-white py-4 rounded-3xl font-black text-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
+                className="w-[85%] mx-auto bg-primary-600 hover:bg-primary-700 text-white py-4 rounded-3xl font-black text-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
               >
                 <MapPin className="w-6 h-6" />
                 PASSOS
-              </button>
+              </motion.button>
             </div>
 
             {/* Bottom: Indicador */}
@@ -440,29 +461,6 @@ export default function App() {
             
             <div className="bg-slate-50 dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
-                <Sun className="w-5 h-5 text-primary-900 dark:text-primary-400" />
-                Aparência
-              </h3>
-              <div className="flex flex-col gap-3 mt-4">
-                <button
-                  onClick={() => setTheme('light')}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${theme === 'light' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-primary-300'}`}
-                >
-                  <Sun className={`w-5 h-5 ${theme === 'light' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-500'}`} />
-                  <span className={`font-bold ${theme === 'light' ? 'text-primary-900 dark:text-primary-400' : 'text-slate-600 dark:text-slate-400'}`}>Modo Claro</span>
-                </button>
-                <button
-                  onClick={() => setTheme('dark')}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${theme === 'dark' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-primary-300'}`}
-                >
-                  <Moon className={`w-5 h-5 ${theme === 'dark' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-500'}`} />
-                  <span className={`font-bold ${theme === 'dark' ? 'text-primary-900 dark:text-primary-400' : 'text-slate-600 dark:text-slate-400'}`}>Modo Escuro</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700 pb-4">
                 <Settings className="w-5 h-5 text-primary-900 dark:text-primary-400" />
                 Perfil do Motorista
               </h3>
@@ -585,7 +583,7 @@ export default function App() {
               </div>
               
               <div>
-                <span className="text-slate-400 block text-xs uppercase tracking-wider mb-1">Desenvolvedor Principal</span>
+                <span className="text-slate-400 block text-xs uppercase tracking-wider mb-1">Desenvolvedor</span>
                 <span className="font-bold text-lg text-white">Marcelo Cesar Coelho</span>
               </div>
               
@@ -595,8 +593,8 @@ export default function App() {
               </div>
               
               <div>
-                <span className="text-slate-400 block text-xs uppercase tracking-wider mb-1">Suporte</span>
-                <a href="tel:+5535998732951" className="text-primary-400 hover:text-primary-300 transition-colors font-bold text-base inline-flex items-center gap-2 bg-primary-900/20 px-4 py-2 rounded-full border border-primary-900/50">
+                <span className="text-slate-400 block text-xs uppercase tracking-wider mb-1">Contato</span>
+                <a href="https://wa.me/5535998732951" target="_blank" rel="noopener noreferrer" className="text-primary-400 hover:text-primary-300 transition-colors font-bold text-base inline-flex items-center gap-2 bg-primary-900/20 px-4 py-2 rounded-full border border-primary-900/50">
                   (35) 99873-2951
                 </a>
               </div>
@@ -646,56 +644,55 @@ export default function App() {
       </nav>
 
       {/* Relatório de Impressão / Preview */}
-      {(showReport || true) && (
-        <div className={`${showReport ? 'fixed inset-0 bg-slate-900/90 z-[60] overflow-y-auto p-4 md:p-8 flex flex-col items-center' : 'print-only'}`}>
-          {showReport && (
-            <div className="w-full max-w-4xl flex flex-wrap justify-between items-center gap-4 mb-6 no-print">
+      {showReport && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[60] overflow-y-auto p-4 md:p-8 flex flex-col items-center backdrop-blur-sm no-print">
+          <div className="w-full max-w-4xl flex flex-wrap justify-between items-center gap-4 mb-6">
               <button 
                 onClick={() => setShowReport(false)}
-                className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-2xl font-bold transition-colors flex items-center gap-2"
+                className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
               >
                 <X className="w-5 h-5" /> Fechar
               </button>
-              <div className="flex gap-3 flex-1 sm:flex-none">
-                <button 
-                  onClick={triggerPrint}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-900 px-6 py-3 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 border border-slate-300 flex-1 min-w-[140px]"
-                >
-                  <Printer className="w-5 h-5" /> Imprimir
-                </button>
+              <div className="flex gap-3 flex-1 sm:flex-none justify-end">
                 <button 
                   onClick={handleSavePDF}
                   disabled={isGeneratingPDF}
-                  className="bg-primary-600 hover:bg-primary-500 text-white px-6 py-3 rounded-2xl font-black transition-all shadow-lg shadow-primary-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed flex-1 min-w-[140px]"
+                  className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white p-3 rounded-2xl shadow-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  title="Salvar como PDF"
                 >
                   {isGeneratingPDF ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" /> Gerando...
-                    </>
+                    <Loader2 className="w-6 h-6 animate-spin" />
                   ) : (
-                    <>
-                      <FileDown className="w-5 h-5" /> Salvar PDF
-                    </>
+                    <FileDown className="w-6 h-6" />
                   )}
+                </button>
+                <button 
+                  onClick={triggerPrint}
+                  className="bg-primary-600 hover:bg-primary-700 text-white p-3 rounded-2xl shadow-lg transition-colors"
+                  title="Imprimir"
+                >
+                  <Printer className="w-6 h-6" />
                 </button>
               </div>
             </div>
-          )}
 
           <div 
             ref={reportRef}
-            className={`bg-white text-black p-8 md:p-12 shadow-2xl w-full max-w-4xl min-h-[29.7cm] ${showReport ? 'rounded-3xl' : ''}`}
+            className="bg-white text-black p-8 md:p-12 w-full max-w-4xl shadow-2xl rounded-3xl min-h-[29.7cm]"
           >
-            <div className="flex items-center justify-between border-b-4 border-slate-900 pb-6 mb-10">
-              <div>
-                <h1 className="text-4xl font-black uppercase tracking-tighter leading-none mb-2">Relatório de Diárias</h1>
-                <p className="text-slate-600 font-bold uppercase tracking-[0.2em] text-sm">Ambulância • {format(monthToPrint, "MMMM 'de' yyyy", { locale: ptBR })}</p>
-              </div>
-              <div className="text-right flex flex-col items-end gap-2">
-                <div className="bg-slate-900 text-white p-2 rounded-lg">
-                  <Ambulance className="w-8 h-8" />
+            <div className="flex flex-col sm:flex-row items-start justify-between border-b-4 border-slate-900 pb-8 mb-10 gap-6">
+              <div className="flex flex-col gap-1">
+                <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter leading-none text-slate-900">Relatório de Diárias</h1>
+                <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-xs md:text-sm mt-2">
+                  Ambulância • {format(monthToPrint, "MMMM 'de' yyyy", { locale: ptBR })}
+                </p>
+                <div className="mt-4 bg-slate-100 px-4 py-2 rounded-lg inline-block self-start">
+                  <p className="text-slate-700 font-black uppercase tracking-widest text-[10px] md:text-xs">
+                    Motorista: <span className="text-slate-900">{config?.motoristaNome || 'Não informado'}</span>
+                  </p>
                 </div>
-                <p className="text-[10px] text-slate-400 font-mono">ID: {format(monthToPrint, "yyyyMM")}</p>
+              </div>
+              <div className="text-right flex flex-row sm:flex-col items-center sm:items-end gap-3 sm:gap-2 shrink-0">
               </div>
             </div>
 
@@ -739,7 +736,7 @@ export default function App() {
                     </tr>
                   ) : (
                     monthTripsReport.filter(v => v.valor_ganho > 0).map((v, idx) => (
-                      <tr key={v.id} className={idx % 2 === 0 ? 'bg-slate-50/30' : ''}>
+                      <tr key={v.id} className={idx % 2 === 0 ? 'bg-[rgba(248,250,252,0.3)]' : ''}>
                         <td className="py-4 font-bold text-slate-700">{format(parseISO(v.data_completa), "dd/MM/yyyy")}</td>
                         <td className="py-4 text-slate-500 font-medium">{format(parseISO(v.data_completa), "HH:mm")}</td>
                         <td className="py-4 font-black text-slate-900">{v.destino}</td>
@@ -754,13 +751,13 @@ export default function App() {
             {/* Viagens sem Valor (Excedentes) */}
             <div className="mb-12">
               <h3 className="text-lg font-black uppercase tracking-widest mb-6 border-b-2 border-slate-200 pb-2 inline-block">Viagens Excedentes (Sem Diária)</h3>
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="text-left border-b-2 border-slate-900">
-                    <th className="py-4 font-black uppercase text-xs tracking-widest">Data</th>
-                    <th className="py-4 font-black uppercase text-xs tracking-widest">Hora</th>
-                    <th className="py-4 font-black uppercase text-xs tracking-widest">Destino</th>
-                    <th className="py-4 text-right font-black uppercase text-xs tracking-widest">Valor</th>
+                    <th className="py-4 font-black uppercase text-xs tracking-widest w-1/4">Data</th>
+                    <th className="py-4 font-black uppercase text-xs tracking-widest w-1/6">Hora</th>
+                    <th className="py-4 font-black uppercase text-xs tracking-widest w-1/3">Destino</th>
+                    <th className="py-4 text-right font-black uppercase text-xs tracking-widest w-1/4">Valor</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -770,11 +767,11 @@ export default function App() {
                     </tr>
                   ) : (
                     monthTripsReport.filter(v => v.valor_ganho === 0).map((v, idx) => (
-                      <tr key={v.id} className={idx % 2 === 0 ? 'bg-slate-50/30' : ''}>
-                        <td className="py-4 font-bold text-slate-700">{format(parseISO(v.data_completa), "dd/MM/yyyy")}</td>
-                        <td className="py-4 text-slate-500 font-medium">{format(parseISO(v.data_completa), "HH:mm")}</td>
-                        <td className="py-4 font-black text-slate-900">{v.destino}</td>
-                        <td className="py-4 text-right font-black text-slate-400">R$ 0,00</td>
+                      <tr key={v.id} className={idx % 2 === 0 ? 'bg-[rgba(248,250,252,0.3)]' : ''}>
+                        <td className="py-4 font-bold text-slate-700 truncate">{format(parseISO(v.data_completa), "dd/MM/yyyy")}</td>
+                        <td className="py-4 text-slate-500 font-medium truncate">{format(parseISO(v.data_completa), "HH:mm")}</td>
+                        <td className="py-4 font-black text-slate-900 truncate">{v.destino}</td>
+                        <td className="py-4 text-right font-black text-slate-400 truncate">R$ 0,00</td>
                       </tr>
                     ))
                   )}
@@ -788,54 +785,14 @@ export default function App() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Assinatura</p>
                 </div>
               </div>
-              <div className="flex justify-between items-end text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                <p>Motorista: <span className="text-slate-900">{config?.motoristaNome || 'Não informado'}</span></p>
-                <p className="font-medium text-slate-400 normal-case tracking-normal">Relatório gerado em: {format(new Date(), "dd/MM/yyyy 'às' HH:mm")}</p>
-              </div>
             </div>
           </div>
           
+          {/* Dica removida */}
           {showReport && (
             <p className="mt-8 text-slate-400 text-xs font-medium no-print">
-              Dica: Selecione "Salvar como PDF" nas opções de destino da impressora.
             </p>
           )}
-        </div>
-      )}
-
-      {/* Modal de Login (Primeiro Acesso) */}
-      {config && !config.motoristaNome && (
-        <div className="fixed inset-0 bg-primary-900 flex items-center justify-center z-[100] p-6">
-          <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 text-slate-900 flex flex-col items-center text-center">
-            <div className="w-20 h-20 rounded-3xl bg-primary-100 flex items-center justify-center mb-6">
-              <Ambulance className="w-10 h-10 text-primary-600" />
-            </div>
-            
-            <h2 className="text-2xl font-black mb-2 text-slate-900">Bem-vindo!</h2>
-            <p className="text-slate-500 font-medium mb-8">
-              Para começar, informe seu nome completo. Ele será usado nos relatórios de impressão.
-            </p>
-            
-            <form onSubmit={handleLogin} className="w-full space-y-4">
-              <div className="text-left">
-                <label className="block text-xs font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Nome Completo</label>
-                <input 
-                  type="text" 
-                  name="nome" 
-                  autoFocus
-                  placeholder="Ex: João da Silva"
-                  className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary-500 focus:ring-0 outline-none font-bold text-lg transition-all"
-                  required
-                />
-              </div>
-              <button 
-                type="submit"
-                className="w-full p-5 bg-primary-600 hover:bg-primary-500 text-white font-black text-lg rounded-2xl transition-all shadow-lg shadow-primary-900/20 active:scale-95"
-              >
-                Começar a Usar
-              </button>
-            </form>
-          </div>
         </div>
       )}
     </div>

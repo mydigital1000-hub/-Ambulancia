@@ -3,17 +3,61 @@
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary-50: var(--primary-50);
-  --color-primary-100: var(--primary-100);
-  --color-primary-200: var(--primary-200);
-  --color-primary-300: var(--primary-300);
-  --color-primary-400: var(--primary-400);
-  --color-primary-500: var(--primary-500);
-  --color-primary-600: var(--primary-600);
-  --color-primary-700: var(--primary-700);
-  --color-primary-800: var(--primary-800);
-  --color-primary-900: var(--primary-900);
-  --color-primary-950: var(--primary-950);
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary-950: #172554;
+
+  /* Override default oklch slate colors with hex for html2canvas compatibility */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  /* Override other used colors with hex */
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+
+  /* Override default shadows to avoid oklab/oklch in generated CSS */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+  /* Override default drop-shadows to avoid oklab */
+  --drop-shadow-sm: 0 1px 1px rgba(0,0,0,0.05);
+  --drop-shadow-md: 0 4px 3px rgba(0,0,0,0.07), 0 2px 2px rgba(0,0,0,0.06);
+  --drop-shadow-lg: 0 10px 8px rgba(0,0,0,0.04), 0 4px 3px rgba(0,0,0,0.1);
+  --drop-shadow-xl: 0 20px 13px rgba(0,0,0,0.03), 0 8px 5px rgba(0,0,0,0.08);
+  --drop-shadow-2xl: 0 25px 25px rgba(0,0,0,0.15);
+
+  /* Default ring color */
+  --ring-color: rgba(59, 130, 246, 0.5);
+}
+
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
 }
 
 :root {
