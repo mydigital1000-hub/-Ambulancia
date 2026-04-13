@@ -224,12 +224,12 @@ export default function App() {
       console.log('Arquivo verificado:', fileStat);
 
       // Ensure file URI is correctly formatted for Android
-      const fileUri = fileStat.uri.startsWith('file://') ? fileStat.uri : `file://${fileStat.uri}`;
+      const fileUri = fileStat.uri;
 
       await Share.share({
         title: 'Relatório de Diárias',
         text: 'Aqui está seu relatório de diárias.',
-        url: fileUri,
+        files: [fileUri],
         dialogTitle: 'Compartilhar Relatório',
       });
       
