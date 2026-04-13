@@ -10,8 +10,10 @@ import { db, type Viagem } from './lib/db';
 import { format, parseISO, isToday, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, addDays, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Home, List, Settings, MapPin, Calendar, Moon, Sun, Ambulance, Trash2, AlertTriangle, Info, X, ChevronLeft, ChevronRight, Printer, FileDown, Loader2 } from 'lucide-react';
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 export default function App() {
   const [activeTab, setActiveTab] = React.useState<'inicio' | 'historico' | 'ajustes'>('inicio');
@@ -100,34 +102,140 @@ export default function App() {
   };
 
   const handleSavePDF = async () => {
-    if (!reportRef.current) return;
-    
     try {
       setIsGeneratingPDF(true);
-      const element = reportRef.current;
       
-      // Use a higher scale for better quality
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const margin = 15;
+      
+      const paidTrips = monthTripsReport.filter(v => v.valor_ganho > 0);
+      const zeroValueTrips = monthTripsReport.filter(v => v.valor_ganho === 0);
+      
+      // Header
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('RELATÓRIO DE DIÁRIAS', margin, margin + 10);
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Motorista: ${config?.motoristaNome || 'Não informado'}`, margin, margin + 20);
+      doc.text(`Mês: ${format(monthToPrint, "MMMM 'de' yyyy", { locale: ptBR })}`, margin, margin + 27);
+      
+      // Summary
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Resumo Financeiro', margin, margin + 40);
+      
+      doc.setFontSize(12);
+      doc.text(`Total Acumulado: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(paidTrips.reduce((acc, v) => acc + v.valor_ganho, 0))}`, margin, margin + 48);
+      doc.text(`Total de Viagens: ${monthTripsReport.length}`, margin, margin + 55);
+      
+      let currentY = margin + 65;
+      
+      // Paid Trips Table
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Viagens com Diárias', margin, currentY);
+      currentY += 5;
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [['DATA', 'HORA', 'DESTINO', 'VALOR']],
+        body: paidTrips.map(v => [
+          format(parseISO(v.data_completa), "dd/MM/yyyy"),
+          format(parseISO(v.data_completa), "HH:mm"),
+          v.destino,
+          new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v.valor_ganho)
+        ]),
+        margin: { top: margin, bottom: margin, left: margin, right: margin },
+        styles: { cellPadding: 3, fontSize: 10 },
+        headStyles: { fillColor: [41, 128, 185] }, // Blue header
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 'auto' },
+          3: { cellWidth: 30, halign: 'right' }
+        }
       });
       
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 0;
+      currentY = (doc as any).lastAutoTable.finalY + 10;
       
-      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-      pdf.save(`relatorio-diarias-${format(monthToPrint, "yyyy-MM")}.pdf`);
+      // Divider
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, currentY, 210 - margin, currentY);
+      currentY += 10;
+      
+      // Zero Value Trips Table
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Viagens Excedentes/Sem Diária', margin, currentY);
+      currentY += 5;
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [['DATA', 'HORA', 'DESTINO', 'VALOR']],
+        body: zeroValueTrips.map(v => [
+          format(parseISO(v.data_completa), "dd/MM/yyyy"),
+          format(parseISO(v.data_completa), "HH:mm"),
+          v.destino,
+          new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v.valor_ganho)
+        ]),
+        margin: { top: margin, bottom: margin, left: margin, right: margin },
+        styles: { cellPadding: 3, fontSize: 10 },
+        headStyles: { fillColor: [128, 128, 128] }, // Gray header
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 'auto' },
+          3: { cellWidth: 30, halign: 'right' }
+        }
+      });
+      
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+      if (!pdfBase64) {
+        throw new Error('Falha ao gerar string Base64 do PDF');
+      }
+      
+      const fileName = `relatorio-diarias-${format(monthToPrint, "yyyy-MM")}.pdf`;
+      
+      // Check/Request permissions
+      const permissions = await Filesystem.checkPermissions();
+      if (permissions.publicStorage !== 'granted') {
+        const request = await Filesystem.requestPermissions();
+        if (request.publicStorage !== 'granted') {
+          throw new Error('Permissão de escrita negada pelo usuário');
+        }
+      }
+      
+      const savedFile = await Filesystem.writeFile({
+        path: fileName,
+        data: pdfBase64,
+        directory: Directory.Cache,
+      });
+
+      // Delay to ensure file is written
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Verify file existence
+      const fileStat = await Filesystem.stat({
+        path: fileName,
+        directory: Directory.Cache,
+      });
+      console.log('Arquivo verificado:', fileStat);
+
+      // Ensure file URI is correctly formatted for Android
+      const fileUri = fileStat.uri.startsWith('file://') ? fileStat.uri : `file://${fileStat.uri}`;
+
+      await Share.share({
+        title: 'Relatório de Diárias',
+        text: 'Aqui está seu relatório de diárias.',
+        url: fileUri,
+        dialogTitle: 'Compartilhar Relatório',
+      });
+      
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
+      console.error('Erro detalhado ao gerar/compartilhar PDF:', error);
+      alert('Erro ao compartilhar relatório. Verifique as permissões do app.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -645,8 +753,8 @@ export default function App() {
 
       {/* Relatório de Impressão / Preview */}
       {showReport && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[60] overflow-y-auto p-4 md:p-8 flex flex-col items-center backdrop-blur-sm no-print">
-          <div className="w-full max-w-4xl flex flex-wrap justify-between items-center gap-4 mb-6">
+        <div className="fixed inset-0 bg-slate-900/60 z-[60] overflow-y-auto p-4 md:p-8 flex flex-col items-center backdrop-blur-sm print-transparent">
+          <div className="w-full max-w-4xl flex flex-wrap justify-between items-center gap-4 mb-6 no-print">
               <button 
                 onClick={() => setShowReport(false)}
                 className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-6 py-3 rounded-2xl font-bold shadow-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"

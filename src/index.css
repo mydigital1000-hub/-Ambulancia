@@ -92,6 +92,11 @@ body {
   @page {
     margin: 2cm;
   }
+  
+  .print-transparent {
+    background: transparent !important;
+    backdrop-filter: none !important;
+  }
 }
 
 .print-only {
