@@ -98,23 +98,28 @@ export default function App() {
   };
 
   const triggerPrint = () => {
-    window.print();
+    handleSavePDF();
   };
 
   const handleSavePDF = async () => {
     try {
       setIsGeneratingPDF(true);
       
-      const doc = new jsPDF('p', 'mm', 'a4');
-      const margin = 15;
+      console.log('Iniciando geração de PDF...');
       
       const paidTrips = monthTripsReport.filter(v => v.valor_ganho > 0);
       const zeroValueTrips = monthTripsReport.filter(v => v.valor_ganho === 0);
+      
+      console.log('Dados de viagens:', { paidTrips: paidTrips.length, zeroValueTrips: zeroValueTrips.length });
+      const doc = new jsPDF('p', 'mm', 'a4');
+      console.log('jsPDF inicializado');
+      const margin = 15;
       
       // Header
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
       doc.text('RELATÓRIO DE DIÁRIAS', margin, margin + 10);
+      console.log('Header desenhado');
       
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
@@ -129,6 +134,7 @@ export default function App() {
       doc.setFontSize(12);
       doc.text(`Total Acumulado: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(paidTrips.reduce((acc, v) => acc + v.valor_ganho, 0))}`, margin, margin + 48);
       doc.text(`Total de Viagens: ${monthTripsReport.length}`, margin, margin + 55);
+      console.log('Resumo desenhado');
       
       let currentY = margin + 65;
       
@@ -137,6 +143,7 @@ export default function App() {
       doc.setFont('helvetica', 'bold');
       doc.text('Viagens com Diárias', margin, currentY);
       currentY += 5;
+      console.log('Iniciando tabela de viagens pagas');
       
       autoTable(doc, {
         startY: currentY,
@@ -157,6 +164,7 @@ export default function App() {
           3: { cellWidth: 30, halign: 'right' }
         }
       });
+      console.log('Tabela de viagens pagas desenhada');
       
       currentY = (doc as any).lastAutoTable.finalY + 10;
       
@@ -191,16 +199,20 @@ export default function App() {
         }
       });
       
-      const pdfBase64 = doc.output('datauristring').split(',')[1];
-      if (!pdfBase64) {
-        throw new Error('Falha ao gerar string Base64 do PDF');
+      console.log('PDF gerado na memória, extraindo base64...');
+      const pdfBase64 = doc.output('datauristring');
+      const base64Data = pdfBase64.split(',')[1];
+      if (!base64Data) {
+        throw new Error('Falha ao extrair Base64 do PDF');
       }
       
       const fileName = `relatorio-diarias-${format(monthToPrint, "yyyy-MM")}.pdf`;
+      console.log('Salvando arquivo:', fileName);
       
       // Check/Request permissions
       const permissions = await Filesystem.checkPermissions();
       if (permissions.publicStorage !== 'granted') {
+        console.log('Solicitando permissões...');
         const request = await Filesystem.requestPermissions();
         if (request.publicStorage !== 'granted') {
           throw new Error('Permissão de escrita negada pelo usuário');
@@ -209,32 +221,14 @@ export default function App() {
       
       const savedFile = await Filesystem.writeFile({
         path: fileName,
-        data: pdfBase64,
-        directory: Directory.Cache,
+        data: base64Data,
+        directory: Directory.Documents,
       });
-
-      // Delay to ensure file is written
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Verify file existence
-      const fileStat = await Filesystem.stat({
-        path: fileName,
-        directory: Directory.Cache,
-      });
-      console.log('Arquivo verificado:', fileStat);
-
-      // Ensure file URI is correctly formatted for Android
-      const fileUri = fileStat.uri;
-
-      await Share.share({
-        title: 'Relatório de Diárias',
-        text: 'Aqui está seu relatório de diárias.',
-        files: [fileUri],
-        dialogTitle: 'Compartilhar Relatório',
-      });
+      console.log('Arquivo salvo com sucesso em:', savedFile.uri);
+      alert('PDF gerado e salvo em Documentos com sucesso!');
       
     } catch (error) {
-      console.error('Erro detalhado ao gerar/compartilhar PDF:', error);
+      console.error('Erro detalhado ao gerar PDF:', error);
       alert('Erro ao compartilhar relatório. Verifique as permissões do app.');
     } finally {
       setIsGeneratingPDF(false);
